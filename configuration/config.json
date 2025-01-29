@@ -1,0 +1,16 @@
+{
+  "active_env" : "DEV",
+  "env_config" : [
+    {
+      "env_type" : "DEV",
+      "port" : "8000",
+      "database" : {
+        "user" : "itdev",
+        "password" : "",
+        "database_name" : "hall_res_project",
+        "host" : "localhost",
+        "port" : "3306"
+      }
+    }
+  ]
+}
