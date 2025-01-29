@@ -13,7 +13,7 @@ type User struct {
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 	LastLogin time.Time `gorm:"column:last_login" json:"last_login"`
 	IsActive  bool      `gorm:"column:is_active" json:"is_active"`
-	Roles     []Role    `gorm:"many2many:hall_res_project.user_roles;joinForeignKey:UserID;joinReferences:RoleID" json:"roles,omitempty"`
+	Roles     []Role    `gorm:"many2many:hall_res_project.users_roles;joinForeignKey:UserID;joinReferences:RoleID" json:"roles,omitempty"`
 }
 
 type UserRoles struct {
@@ -25,7 +25,7 @@ type Role struct {
 	RoleID    int64     `gorm:"column:id;primaryKey" json:"role_id"`
 	RoleName  string    `gorm:"column:role_name;unique;size:255;not null" json:"role_name"`
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	Users     []User    `gorm:"many2many:hall_res_project.user_roles;joinForeignKey:RoleID;joinReferences:UserID" json:"users,omitempty"`
+	Users     []User    `gorm:"many2many:hall_res_project.users_roles;joinForeignKey:RoleID;joinReferences:UserID" json:"users,omitempty"`
 }
 
 type ChangePassword struct {
@@ -40,7 +40,7 @@ func (Role) TableName() string {
 }
 
 func (UserRoles) TableName() string {
-	return "hall_res_project.user_roles"
+	return "hall_res_project.users_roles"
 }
 
 func (User) TableName() string {
