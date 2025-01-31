@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"storage/configuration"
 	"storage/middleware"
+	"storage/services/hall" // Import Hall service
 	login "storage/services/login"
 	register "storage/services/register"
+	"storage/services/reservation" // Import Reservation service
 	"storage/services/user"
 )
 
@@ -37,6 +39,17 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.POST("/update-role", user.HandlerUpdateRole(d))
 		protected.POST("/assign-role", user.HandlerAssignRole(d))
 		protected.POST("/revoke-role", user.HandlerRevokeRole(d))
+
+		// Hall Management Routes
+		protected.POST("/halls", hall.CreateHall(d))       // Create a new hall
+		protected.GET("/halls", hall.GetHalls(d))          // Get all halls
+		protected.PUT("/halls/:id", hall.UpdateHall(d))    // Update a hall by ID
+		protected.DELETE("/halls/:id", hall.DeleteHall(d)) // Delete a hall by ID
+
+		// Reservation Management Routes
+		protected.POST("/reservations", reservation.CreateReservation(d))       // Create a new reservation
+		protected.GET("/reservations", reservation.GetReservations(d))          // Get all reservations
+		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d)) // Delete a reservation by ID
 
 	}
 
