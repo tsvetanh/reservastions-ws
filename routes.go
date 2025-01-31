@@ -50,7 +50,7 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.POST("/reservations", reservation.CreateReservation(d))       // Create a new reservation
 		protected.GET("/reservations", reservation.GetReservations(d))          // Get all reservations
 		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d)) // Delete a reservation by ID
-
+		protected.PUT("/reservations/:id", reservation.UpdateReservation(d))    //Manage/Modify reservations
 	}
 
 	return r
