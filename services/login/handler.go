@@ -38,7 +38,7 @@ func LoginHandler(conf *configuration.Dependencies) gin.HandlerFunc {
 
 		inputUser.Username = strings.TrimSpace(strings.ToLower(inputUser.Username))
 
-		var dbUser user.User // Use the User model from the users package
+		var dbUser user.User
 		if err := conf.Db.Preload("Roles").Where("lower(username) = ?", inputUser.Username).First(&dbUser).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return

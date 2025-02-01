@@ -16,6 +16,13 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		// Get hall ID from URL parameter.
 		hallIDStr := c.Param("id")
 		hallID, err := strconv.ParseUint(hallIDStr, 10, 64)
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hall ID"})
 			return

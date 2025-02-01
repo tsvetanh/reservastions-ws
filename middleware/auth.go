@@ -1,14 +1,16 @@
 package middleware
 
 import (
-	"net/http"
-	"os"
-
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"net/http"
+	"os"
+	"storage/configuration"
+	"storage/services/user"
+	"strings"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(conf *configuration.Dependencies) gin.HandlerFunc {
 	jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
 	return func(c *gin.Context) {
 		// Get the token from the "Authorization" header
@@ -50,10 +52,63 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		username := claims["username"]
+		var dbUser user.User
 
-		// Set user information from the token claims into the context
-		c.Set("username", claims["username"])
+		if err := conf.Db.Preload("Roles").Where("lower(username) = ?", username).First(&dbUser).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			return
+		}
+
+		var roleNames []string
+		for _, role := range dbUser.Roles {
+			roleNames = append(roleNames, role.RoleName)
+		}
+
+		c.Set("username", username)
 		c.Set("user_id", claims["user_id"])
+		c.Set("roles", roleNames)
+
+		c.Next()
+	}
+}
+
+func AllowedRoles(allowedRoles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRoles, exists := c.Get("roles")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User is not authenticated"})
+			c.Abort()
+			return
+		}
+
+		print(userRoles)
+
+		roles, ok := userRoles.([]string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid roles format"})
+			c.Abort()
+			return
+		}
+
+		roleAllowed := false
+		for _, allowedRole := range allowedRoles {
+			for _, userRole := range roles {
+				if strings.ToLower(userRole) == strings.ToLower(allowedRole) {
+					roleAllowed = true
+					break
+				}
+			}
+			if roleAllowed {
+				break
+			}
+		}
+
+		if !roleAllowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			c.Abort()
+			return
+		}
 
 		c.Next()
 	}
