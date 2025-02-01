@@ -40,20 +40,26 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.POST("/assign-role", user.HandlerAssignRole(d))
 		protected.POST("/revoke-role", user.HandlerRevokeRole(d))
 
-		// Hall Management Routes
-		protected.POST("/halls", hall.CreateHall(d))       // Create a new hall
-		protected.GET("/halls", hall.GetHalls(d))          // Get all halls
-		protected.PUT("/halls/:id", hall.UpdateHall(d))    // Update a hall by ID
-		protected.DELETE("/halls/:id", hall.DeleteHall(d)) // Delete a hall by ID
-		protected.GET("/halls/:id/utilization", hall.GetHallUtilizationRate(d)) //Statistics on Hall usage
+		{ // Hall Management Routes
+			hallGroup := protected.Group("/halls")
 
-		// Reservation Management Routes
-		protected.POST("/reservations", reservation.CreateReservation(d))                     // Create a new reservation
-		protected.GET("/reservations", reservation.GetReservations(d))                        // Get all reservations
-		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d))               // Delete a reservation by ID
-		protected.PUT("/reservations/:id", reservation.UpdateReservation(d))                  //Manage/Modify reservations
-		protected.GET("/reservations/categorized", reservation.GetCategorizedReservations(d)) // New endpoint for categorized reservations.
-		protected.GET("/reservations/summary", reservation.GetReservationSummary(d))          //Dashboard for reservations
+			hallGroup.POST("", hall.CreateHall(d))                            // Create a new hall
+			hallGroup.GET("", hall.GetHalls(d))                               // Get all halls
+			hallGroup.PUT("/:id", hall.UpdateHall(d))                         // Update a hall by ID
+			hallGroup.DELETE("/:id", hall.DeleteHall(d))                      // Delete a hall by ID
+			hallGroup.GET("/:id/utilization", hall.GetHallUtilizationRate(d)) // Statistics on Hall usage
+		}
+
+		{ // Reservation Management Routes
+			reservationGroup := protected.Group("/reservations")
+
+			reservationGroup.POST("", reservation.CreateReservation(d))                     // Create a new reservation
+			reservationGroup.GET("", reservation.GetReservations(d))                        // Get all reservations
+			reservationGroup.DELETE("/:id", reservation.DeleteReservation(d))               // Delete a reservation by ID
+			reservationGroup.PUT("/:id", reservation.UpdateReservation(d))                  //Manage/Modify reservations
+			reservationGroup.GET("/categorized", reservation.GetCategorizedReservations(d)) // New endpoint for categorized reservations.
+			reservationGroup.GET("/summary", reservation.GetReservationSummary(d))          //Dashboard for reservations
+		}
 	}
 
 	return r
