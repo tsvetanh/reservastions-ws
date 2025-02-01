@@ -18,7 +18,7 @@ type Reservation struct {
 
 // TableName sets the table name for the Reservation model in the database.
 func (Reservation) TableName() string {
-	return "reservations"
+	return "hall_res_project.reservations"
 }
 
 // CalculateTotalCost calculates the total cost of the reservation based on the hall's cost per day.
