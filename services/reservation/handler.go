@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"storage/configuration"
 	"storage/models"
+	"storage/services/receipt"
+	"strings"
 	"time"
 )
 
@@ -77,7 +79,7 @@ func UpdateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-// CreateReservation handles creating a new reservation
+// CreateReservation handles creating a new reservation.
 func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservation models.Reservation
@@ -86,26 +88,31 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		// Ensure valid dates
-		if reservation.StartDate.After(reservation.EndDate) {
+		// Ensure the start date is before the end date.
+		if !reservation.StartDate.Before(reservation.EndDate) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Start date must be before end date"})
 			return
 		}
 
-		// Prevent double booking
+		// Ensure the start date is not in the past.
+		if reservation.StartDate.Before(time.Now()) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Start date cannot be in the past"})
+			return
+		}
+
+		// Prevent double booking.
 		var count int64
 		conf.Db.Model(&models.Reservation{}).
 			Where("hall_id = ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
 				reservation.HallID, reservation.StartDate, reservation.EndDate,
 				reservation.StartDate, reservation.EndDate).
 			Count(&count)
-
 		if count > 0 {
 			c.JSON(http.StatusConflict, gin.H{"error": "Hall is already booked for these dates"})
 			return
 		}
 
-		// Get hall price and calculate total cost
+		// Fetch hall price and calculate total cost.
 		var hall models.Hall
 		if err := conf.Db.First(&hall, reservation.HallID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
@@ -113,39 +120,81 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 		}
 		reservation.CalculateTotalCost(hall.CostPerDay)
 
-		// Save the reservation
+		// Save the reservation.
 		if err := conf.Db.Create(&reservation).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
 			return
 		}
 
-		c.JSON(http.StatusOK, reservation)
+		// Generate receipt after successful creation.
+		if err := receipt.GenerateReceipt(&reservation); err != nil {
+			// Optionally log the error or notify the admin; the reservation creation succeeded.
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Reservation created, but failed to generate receipt"})
+			return
+		}
+
+		// (Optional) Compute additional details such as duration, cost per day, etc.
+		duration := int(reservation.EndDate.Sub(reservation.StartDate).Hours() / 24)
+		if duration < 1 {
+			duration = 1
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"reservation": reservation,
+			"details": gin.H{
+				"duration_days": duration,
+				"cost_per_day":  reservation.TotalCost / float64(duration),
+			},
+		})
 	}
 }
 
-// GetReservations retrieves reservations with optional filtering
+// GetReservations retrieves reservations with enhanced filtering and sorting.
 func GetReservations(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservations []models.Reservation
 		query := conf.Db
 
-		// Apply filters if query parameters are provided
-		if date := c.Query("date"); date != "" {
-			parsedDate, err := time.Parse("2006-01-02", date)
+		// Filter by a specific date.
+		// If a date query parameter is provided (format: "YYYY-MM-DD"),
+		// return reservations that cover that date.
+		if dateStr := c.Query("date"); dateStr != "" {
+			parsedDate, err := time.Parse("2006-01-02", dateStr)
 			if err == nil {
 				query = query.Where("start_date <= ? AND end_date >= ?", parsedDate, parsedDate)
 			}
 		}
 
+		// Filter by company (or person) using a case-insensitive match.
 		if company := c.Query("company"); company != "" {
-			query = query.Where("company = ?", company)
+			// Using LOWER() on the column and the value for case-insensitive comparison.
+			query = query.Where("LOWER(company) = ?", strings.ToLower(company))
 		}
 
-		if hallID := c.Query("hall"); hallID != "" {
-			query = query.Where("hall_id = ?", hallID)
+		// Filter by hall (hall ID).
+		if hall := c.Query("hall"); hall != "" {
+			query = query.Where("hall_id = ?", hall)
 		}
 
-		// Fetch data
+		// Sorting: support "sort_by" and "order" query parameters.
+		// Allowed sort fields include "start_date", "end_date", "company", and "hall_id".
+		if sortBy := c.Query("sort_by"); sortBy != "" {
+			order := c.DefaultQuery("order", "asc")
+			if order != "asc" && order != "desc" {
+				order = "asc"
+			}
+			// Define allowed sort fields.
+			allowedSortFields := map[string]bool{
+				"start_date": true,
+				"end_date":   true,
+				"company":    true,
+				"hall_id":    true,
+			}
+			if allowedSortFields[sortBy] {
+				query = query.Order(fmt.Sprintf("%s %s", sortBy, order))
+			}
+		}
+
+		// Execute the query.
 		if err := query.Find(&reservations).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
 			return
@@ -201,4 +250,36 @@ func deleteReceiptFile(reservationID uint) error {
 
 	fmt.Println("Receipt file deleted:", filePath)
 	return nil
+}
+
+// GetCategorizedReservations groups reservations into Past, Current, and Upcoming.
+func GetCategorizedReservations(conf *configuration.Dependencies) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var reservations []models.Reservation
+		// Preload the Hall association if you need hall details in the response.
+		if err := conf.Db.Preload("Hall").Find(&reservations).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
+			return
+		}
+
+		now := time.Now()
+		var past, current, upcoming []models.Reservation
+
+		for _, r := range reservations {
+			// Categorize based on the current time relative to reservation dates.
+			if r.EndDate.Before(now) {
+				past = append(past, r)
+			} else if r.StartDate.After(now) {
+				upcoming = append(upcoming, r)
+			} else {
+				current = append(current, r)
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"past":     past,
+			"current":  current,
+			"upcoming": upcoming,
+		})
+	}
 }

@@ -22,10 +22,22 @@ func (Reservation) TableName() string {
 }
 
 // CalculateTotalCost calculates the total cost of the reservation based on the hall's cost per day.
+// If the reservation lasts longer than 7 days, a 10% discount is applied.
 func (r *Reservation) CalculateTotalCost(costPerDay float64) {
+	// Calculate the number of days.
 	days := r.EndDate.Sub(r.StartDate).Hours() / 24
 	if days < 1 {
 		days = 1
 	}
-	r.TotalCost = days * costPerDay
+
+	// Calculate total cost without discount.
+	total := days * costPerDay
+
+	// Apply a 10% discount for reservations longer than 7 days.
+	if days > 7 {
+		discount := total * 0.10
+		total -= discount
+	}
+
+	r.TotalCost = total
 }

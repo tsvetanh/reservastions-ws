@@ -47,10 +47,11 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.DELETE("/halls/:id", hall.DeleteHall(d)) // Delete a hall by ID
 
 		// Reservation Management Routes
-		protected.POST("/reservations", reservation.CreateReservation(d))       // Create a new reservation
-		protected.GET("/reservations", reservation.GetReservations(d))          // Get all reservations
-		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d)) // Delete a reservation by ID
-		protected.PUT("/reservations/:id", reservation.UpdateReservation(d))    //Manage/Modify reservations
+		protected.POST("/reservations", reservation.CreateReservation(d))                     // Create a new reservation
+		protected.GET("/reservations", reservation.GetReservations(d))                        // Get all reservations
+		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d))               // Delete a reservation by ID
+		protected.PUT("/reservations/:id", reservation.UpdateReservation(d))                  //Manage/Modify reservations
+		protected.GET("/reservations/categorized", reservation.GetCategorizedReservations(d)) // New endpoint for categorized reservations.
 	}
 
 	return r
