@@ -1,4 +1,4 @@
-module storage
+module reservations
 
 go 1.21.0
 

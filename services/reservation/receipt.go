@@ -1,15 +1,14 @@
-package receipt
+package reservation
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"storage/models"
 	"time"
 )
 
 // GenerateReceipt creates a .txt file with reservation details
-func GenerateReceipt(reservation *models.Reservation) error {
+func GenerateReceipt(reservation *Reservation) error {
 	// Ensure the "receipt" directory exists
 	receiptDir := "receipt"
 	if _, err := os.Stat(receiptDir); os.IsNotExist(err) {

@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"storage/configuration"
-	"storage/services/user"
+	"reservations/configuration"
+	"reservations/services/hall"
+	"reservations/services/user"
 	"syscall"
 	"time"
 )
@@ -39,7 +40,10 @@ func main() {
 
 	go configuration.KeepConnectionsAlive(d.Db, time.Minute*5)
 
-	d.Db.AutoMigrate(user.User{}, user.UserRoles{}, user.Role{})
+	err = d.Db.AutoMigrate(user.User{}, user.UserRoles{}, user.Role{}, hall.HallImage{})
+	if err != nil {
+		return
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

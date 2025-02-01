@@ -1,9 +1,8 @@
-// services/reservation/suggestions.go
 package reservation
 
 import (
-	"storage/configuration"
-	"storage/models"
+	"reservations/configuration"
+	"reservations/models"
 	"time"
 )
 
@@ -14,7 +13,7 @@ func SuggestAlternativeDates(conf *configuration.Dependencies, hallID uint, requ
 	startWindow := requestedStart.AddDate(0, 0, -30)
 	endWindow := requestedEnd.AddDate(0, 0, 30)
 
-	var reservations []models.Reservation
+	var reservations []Reservation
 	if err := conf.Db.
 		Where("hall_id = ? AND start_date >= ? AND end_date <= ?", hallID, startWindow, endWindow).
 		Order("start_date asc").

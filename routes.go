@@ -3,13 +3,13 @@ package main
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"storage/configuration"
-	"storage/middleware"
-	"storage/services/hall" // Import Hall service
-	login "storage/services/login"
-	register "storage/services/register"
-	"storage/services/reservation" // Import Reservation service
-	"storage/services/user"
+	"reservations/configuration"
+	"reservations/middleware"
+	"reservations/services/hall" // Import Hall service
+	login "reservations/services/login"
+	register "reservations/services/register"
+	"reservations/services/reservation" // Import Reservation service
+	"reservations/services/user"
 )
 
 func Routes(d *configuration.Dependencies) *gin.Engine {

@@ -2,8 +2,8 @@ package register
 
 import (
 	"net/http"
-	"storage/configuration"
-	"storage/services/user"
+	"reservations/configuration"
+	"reservations/services/user"
 	"strings"
 	"time"
 

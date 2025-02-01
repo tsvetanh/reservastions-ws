@@ -2,7 +2,7 @@ package user
 
 import (
 	"net/http"
-	"storage/configuration"
+	"reservations/configuration"
 
 	"github.com/gin-gonic/gin"
 )

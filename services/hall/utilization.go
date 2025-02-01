@@ -2,11 +2,11 @@ package hall
 
 import (
 	"net/http"
+	"reservations/services/reservation"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"storage/configuration"
-	"storage/models"
+	"reservations/configuration"
 	"strconv"
 )
 
@@ -21,7 +21,7 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		var hall models.Hall
+		var hall Hall
 		if err := conf.Db.First(&hall, hallID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
 			return
@@ -53,7 +53,7 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		totalDays := int(endDate.Sub(startDate).Hours()/24) + 1
 
 		// Query reservations for this hall overlapping the period.
-		var reservations []models.Reservation
+		var reservations []reservation.Reservation
 		if err := conf.Db.
 			Where("hall_id = ? AND start_date <= ? AND end_date >= ?", hall.ID, endDate, startDate).
 			Find(&reservations).Error; err != nil {

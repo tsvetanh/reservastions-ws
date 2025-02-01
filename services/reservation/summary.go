@@ -1,4 +1,3 @@
-// services/reservation/summary.go
 package reservation
 
 import (
@@ -6,14 +5,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"storage/configuration"
-	"storage/models"
+	"reservations/configuration"
 )
 
 // GetReservationSummary aggregates reservation data for dashboard display.
 func GetReservationSummary(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var reservations []models.Reservation
+		var reservations []Reservation
 		if err := conf.Db.Find(&reservations).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
 			return
