@@ -14,6 +14,13 @@ import (
 func GetReservationSummary(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservations []models.Reservation
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := conf.Db.Find(&reservations).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
 			return

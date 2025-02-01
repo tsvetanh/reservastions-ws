@@ -17,6 +17,13 @@ import (
 func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservation models.Reservation
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := c.ShouldBindJSON(&reservation); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 			return
@@ -76,7 +83,7 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		// (Optional) Compute additional details such as duration, cost per day, etc.
+		//Compute additional details such as duration, cost per day, etc.
 		duration := int(reservation.EndDate.Sub(reservation.StartDate).Hours() / 24)
 		if duration < 1 {
 			duration = 1
@@ -98,6 +105,13 @@ func UpdateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 
 		// Fetch the existing reservation
 		var reservation models.Reservation
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := conf.Db.First(&reservation, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
 			return
@@ -163,6 +177,12 @@ func GetReservations(conf *configuration.Dependencies) gin.HandlerFunc {
 		var reservations []models.Reservation
 		query := conf.Db
 
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		// Filter by a specific date.
 		// If a date query parameter is provided (format: "YYYY-MM-DD"),
 		// return reservations that cover that date.
@@ -220,6 +240,13 @@ func DeleteReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 
 		// Fetch the reservation to check if it exists
 		var reservation models.Reservation
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := conf.Db.First(&reservation, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
 			return
@@ -265,6 +292,13 @@ func deleteReceiptFile(reservationID uint) error {
 func GetCategorizedReservations(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservations []models.Reservation
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		// Preload the Hall association if you need hall details in the response.
 		if err := conf.Db.Preload("Hall").Find(&reservations).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})

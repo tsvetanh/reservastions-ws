@@ -12,6 +12,13 @@ import (
 func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var hall models.Hall
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := c.ShouldBindJSON(&hall); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 			return
@@ -50,10 +57,18 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 func GetHalls(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var halls []models.Hall
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := conf.Db.Find(&halls).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve halls"})
 			return
 		}
+
 		c.JSON(http.StatusOK, halls)
 	}
 }
@@ -64,6 +79,13 @@ func UpdateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 		id := c.Param("id")
 
 		var hall models.Hall
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
+
 		if err := conf.Db.First(&hall, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
 			return
@@ -83,6 +105,12 @@ func UpdateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 func DeleteHall(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+
+		//Skip DB operations if DB is not initialized
+		if conf.Db == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			return
+		}
 
 		if err := conf.Db.Delete(&models.Hall{}, id).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete hall"})
