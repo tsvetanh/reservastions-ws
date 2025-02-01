@@ -45,6 +45,7 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.GET("/halls", hall.GetHalls(d))          // Get all halls
 		protected.PUT("/halls/:id", hall.UpdateHall(d))    // Update a hall by ID
 		protected.DELETE("/halls/:id", hall.DeleteHall(d)) // Delete a hall by ID
+		protected.GET("/halls/:id/utilization", hall.GetHallUtilizationRate(d)) //Statistics on Hall usage
 
 		// Reservation Management Routes
 		protected.POST("/reservations", reservation.CreateReservation(d))                     // Create a new reservation
@@ -52,6 +53,7 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 		protected.DELETE("/reservations/:id", reservation.DeleteReservation(d))               // Delete a reservation by ID
 		protected.PUT("/reservations/:id", reservation.UpdateReservation(d))                  //Manage/Modify reservations
 		protected.GET("/reservations/categorized", reservation.GetCategorizedReservations(d)) // New endpoint for categorized reservations.
+		protected.GET("/reservations/summary", reservation.GetReservationSummary(d))          //Dashboard for reservations
 	}
 
 	return r

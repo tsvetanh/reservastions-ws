@@ -107,8 +107,17 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 				reservation.HallID, reservation.StartDate, reservation.EndDate,
 				reservation.StartDate, reservation.EndDate).
 			Count(&count)
+		//Date suggestion, when hall is already booked
 		if count > 0 {
-			c.JSON(http.StatusConflict, gin.H{"error": "Hall is already booked for these dates"})
+			suggestions, err := SuggestAlternativeDates(conf, reservation.HallID, reservation.StartDate, reservation.EndDate)
+			if err != nil {
+				c.JSON(http.StatusConflict, gin.H{"error": "Hall is already booked for these dates"})
+			} else {
+				c.JSON(http.StatusConflict, gin.H{
+					"error":       "Hall is already booked for these dates",
+					"suggestions": suggestions,
+				})
+			}
 			return
 		}
 
