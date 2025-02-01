@@ -13,72 +13,6 @@ import (
 	"time"
 )
 
-// UpdateReservation modifies an existing reservation
-func UpdateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-
-		// Fetch the existing reservation
-		var reservation models.Reservation
-		if err := conf.Db.First(&reservation, id).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
-			return
-		}
-
-		// Bind the incoming JSON to the reservation struct
-		var updatedReservation models.Reservation
-		if err := c.ShouldBindJSON(&updatedReservation); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
-			return
-		}
-
-		// Ensure start_date < end_date
-		if !updatedReservation.StartDate.Before(updatedReservation.EndDate) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Start date must be before end date"})
-			return
-		}
-
-		// Check for overlapping reservations (prevent double booking)
-		var count int64
-		conf.Db.Model(&models.Reservation{}).
-			Where("hall_id = ? AND id != ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
-				updatedReservation.HallID, id,
-				updatedReservation.StartDate, updatedReservation.EndDate,
-				updatedReservation.StartDate, updatedReservation.EndDate).
-			Count(&count)
-
-		if count > 0 {
-			c.JSON(http.StatusConflict, gin.H{"error": "The hall is already booked for the selected dates"})
-			return
-		}
-
-		// Fetch the hall's cost per day
-		var hall models.Hall
-		if err := conf.Db.First(&hall, updatedReservation.HallID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
-			return
-		}
-
-		// Update reservation fields
-		reservation.Name = updatedReservation.Name
-		reservation.Company = updatedReservation.Company
-		reservation.HallID = updatedReservation.HallID
-		reservation.StartDate = updatedReservation.StartDate
-		reservation.EndDate = updatedReservation.EndDate
-
-		// Calculate the updated total cost using the hall's price per day
-		reservation.CalculateTotalCost(hall.CostPerDay)
-
-		// Save the updated reservation
-		if err := conf.Db.Save(&reservation).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update reservation"})
-			return
-		}
-
-		c.JSON(http.StatusOK, reservation)
-	}
-}
-
 // CreateReservation handles creating a new reservation.
 func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -154,6 +88,72 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 				"cost_per_day":  reservation.TotalCost / float64(duration),
 			},
 		})
+	}
+}
+
+// UpdateReservation modifies an existing reservation
+func UpdateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		// Fetch the existing reservation
+		var reservation models.Reservation
+		if err := conf.Db.First(&reservation, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
+			return
+		}
+
+		// Bind the incoming JSON to the reservation struct
+		var updatedReservation models.Reservation
+		if err := c.ShouldBindJSON(&updatedReservation); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+			return
+		}
+
+		// Ensure start_date < end_date
+		if !updatedReservation.StartDate.Before(updatedReservation.EndDate) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Start date must be before end date"})
+			return
+		}
+
+		// Check for overlapping reservations (prevent double booking)
+		var count int64
+		conf.Db.Model(&models.Reservation{}).
+			Where("hall_id = ? AND id != ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
+				updatedReservation.HallID, id,
+				updatedReservation.StartDate, updatedReservation.EndDate,
+				updatedReservation.StartDate, updatedReservation.EndDate).
+			Count(&count)
+
+		if count > 0 {
+			c.JSON(http.StatusConflict, gin.H{"error": "The hall is already booked for the selected dates"})
+			return
+		}
+
+		// Fetch the hall's cost per day
+		var hall models.Hall
+		if err := conf.Db.First(&hall, updatedReservation.HallID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
+			return
+		}
+
+		// Update reservation fields
+		reservation.Name = updatedReservation.Name
+		reservation.Company = updatedReservation.Company
+		reservation.HallID = updatedReservation.HallID
+		reservation.StartDate = updatedReservation.StartDate
+		reservation.EndDate = updatedReservation.EndDate
+
+		// Calculate the updated total cost using the hall's price per day
+		reservation.CalculateTotalCost(hall.CostPerDay)
+
+		// Save the updated reservation
+		if err := conf.Db.Save(&reservation).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update reservation"})
+			return
+		}
+
+		c.JSON(http.StatusOK, reservation)
 	}
 }
 
