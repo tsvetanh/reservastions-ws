@@ -1,12 +1,14 @@
 package models
 
 import (
+	"storage/services/user"
 	"time"
 )
 
 // Reservation represents a booking made for a hall.
 type Reservation struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    int64     `gorm:"not null" json:"user_id"` // Link to registered user
 	Name      string    `gorm:"not null;size:255" json:"name"`
 	Company   string    `gorm:"not null;size:255" json:"company"`
 	StartDate time.Time `gorm:"not null" json:"start_date"`
@@ -14,6 +16,7 @@ type Reservation struct {
 	TotalCost float64   `gorm:"not null" json:"total_cost"`
 	HallID    uint      `gorm:"not null" json:"hall_id"`
 	Hall      Hall      `gorm:"foreignKey:HallID" json:"hall,omitempty"`
+	User      user.User `gorm:"foreignKey:UserID" json:"user,omitempty"` // Use user.User instead of just User
 }
 
 // TableName sets the table name for the Reservation model in the database.
