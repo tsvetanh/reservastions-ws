@@ -7,7 +7,6 @@ import (
 type User struct {
 	UserID    int64     `gorm:"column:id;primaryKey" json:"id"`
 	Username  string    `gorm:"column:username;size:50;unique;not null" json:"username"`
-	Email     string    `gorm:"column:email;size:100;not null;unique" json:"email"`
 	Password  string    `gorm:"column:password;size:255;not null" json:"-"`
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
