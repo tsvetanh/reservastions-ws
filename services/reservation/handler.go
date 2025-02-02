@@ -18,12 +18,21 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservation models.Reservation
 
-		//Skip DB operations if DB is not initialized
+		// Extract authenticated user ID (from middleware)
+		userID, exists := c.Get("userID")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		reservation.UserID = userID.(int64) // Store the UserID
+
+		// Skip DB operations if DB is not initialized
 		if conf.Db == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
 			return
 		}
 
+		// Parse request body into reservation model
 		if err := c.ShouldBindJSON(&reservation); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 			return
@@ -41,14 +50,15 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		// Prevent double booking.
+		// Prevent double booking by checking overlapping reservations.
 		var count int64
 		conf.Db.Model(&models.Reservation{}).
 			Where("hall_id = ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
 				reservation.HallID, reservation.StartDate, reservation.EndDate,
 				reservation.StartDate, reservation.EndDate).
 			Count(&count)
-		//Date suggestion, when hall is already booked
+
+		// Suggest alternative dates if the hall is already booked
 		if count > 0 {
 			suggestions, err := SuggestAlternativeDates(conf, reservation.HallID, reservation.StartDate, reservation.EndDate)
 			if err != nil {
@@ -62,7 +72,7 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		// Fetch hall price and calculate total cost.
+		// Fetch hall price to calculate total cost.
 		var hall models.Hall
 		if err := conf.Db.First(&hall, reservation.HallID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
@@ -70,24 +80,27 @@ func CreateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 		}
 		reservation.CalculateTotalCost(hall.CostPerDay)
 
-		// Save the reservation.
+		// Save the reservation in the database.
 		if err := conf.Db.Create(&reservation).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
 			return
 		}
 
-		// Generate receipt after successful creation.
+		// Generate a receipt after successful reservation creation.
 		if err := receipt.GenerateReceipt(&reservation); err != nil {
-			// Optionally log the error or notify the admin; the reservation creation succeeded.
+			// Log error but still return success since reservation was created.
+			fmt.Printf("Warning: Failed to generate receipt for reservation ID %d: %v\n", reservation.ID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Reservation created, but failed to generate receipt"})
 			return
 		}
 
-		//Compute additional details such as duration, cost per day, etc.
+		// Compute reservation duration and cost per day.
 		duration := int(reservation.EndDate.Sub(reservation.StartDate).Hours() / 24)
 		if duration < 1 {
 			duration = 1
 		}
+
+		// Return success response with reservation details.
 		c.JSON(http.StatusOK, gin.H{
 			"reservation": reservation,
 			"details": gin.H{
@@ -171,21 +184,44 @@ func UpdateReservation(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-// GetReservations retrieves reservations with enhanced filtering and sorting.
+// GetReservations retrieves reservations with filtering and sorting, ensuring users see only their reservations unless they are admins.
 func GetReservations(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var reservations []models.Reservation
 		query := conf.Db
 
-		//Skip DB operations if DB is not initialized
+		// Skip DB operations if DB is not initialized
 		if conf.Db == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot retrieve reservations."})
 			return
 		}
 
-		// Filter by a specific date.
-		// If a date query parameter is provided (format: "YYYY-MM-DD"),
-		// return reservations that cover that date.
+		// Extract user ID and roles from authentication
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+
+		roles, _ := c.Get("roles") // Get user roles from middleware
+		isAdmin := false
+
+		// Check if user has admin role
+		if rolesList, ok := roles.([]string); ok {
+			for _, role := range rolesList {
+				if strings.ToLower(role) == "admin" {
+					isAdmin = true
+					break
+				}
+			}
+		}
+
+		// Restrict non-admin users to their own reservations
+		if !isAdmin {
+			query = query.Where("user_id = ?", userID)
+		}
+
+		// Filter by a specific date (Format: "YYYY-MM-DD")
 		if dateStr := c.Query("date"); dateStr != "" {
 			parsedDate, err := time.Parse("2006-01-02", dateStr)
 			if err == nil {
@@ -193,37 +229,36 @@ func GetReservations(conf *configuration.Dependencies) gin.HandlerFunc {
 			}
 		}
 
-		// Filter by company (or person) using a case-insensitive match.
+		// Filter by company (case-insensitive)
 		if company := c.Query("company"); company != "" {
-			// Using LOWER() on the column and the value for case-insensitive comparison.
 			query = query.Where("LOWER(company) = ?", strings.ToLower(company))
 		}
 
-		// Filter by hall (hall ID).
+		// Filter by hall (hall ID)
 		if hall := c.Query("hall"); hall != "" {
 			query = query.Where("hall_id = ?", hall)
 		}
 
-		// Sorting: support "sort_by" and "order" query parameters.
-		// Allowed sort fields include "start_date", "end_date", "company", and "hall_id".
+		// Sorting: "sort_by" and "order" parameters (Allowed: start_date, end_date, company, hall_id)
 		if sortBy := c.Query("sort_by"); sortBy != "" {
 			order := c.DefaultQuery("order", "asc")
 			if order != "asc" && order != "desc" {
 				order = "asc"
 			}
-			// Define allowed sort fields.
+
 			allowedSortFields := map[string]bool{
 				"start_date": true,
 				"end_date":   true,
 				"company":    true,
 				"hall_id":    true,
 			}
+
 			if allowedSortFields[sortBy] {
 				query = query.Order(fmt.Sprintf("%s %s", sortBy, order))
 			}
 		}
 
-		// Execute the query.
+		// Execute the query
 		if err := query.Find(&reservations).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
 			return
