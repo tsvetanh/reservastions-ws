@@ -100,3 +100,14 @@ func HandlerRevokeRole(conf *configuration.Dependencies) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "Successfully revoked role"})
 	}
 }
+
+func HandlerGetAllRoles(conf *configuration.Dependencies) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		users, err := RepoGetAllRoles(conf.Db)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, users)
+	}
+}

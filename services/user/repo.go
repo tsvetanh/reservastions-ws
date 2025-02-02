@@ -35,3 +35,11 @@ func RepoRevokeRole(db *gorm.DB, roleId, userId int64) error {
 	}
 	return nil
 }
+
+func RepoGetAllRoles(db *gorm.DB) ([]Role, error) {
+	var roles []Role
+	if err := db.Find(&roles).Error; err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
