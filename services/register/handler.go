@@ -15,14 +15,12 @@ import (
 type UserModel struct {
 	ID       uint   `gorm:"primaryKey"`
 	Username string `gorm:"unique"`
-	Email    string `gorm:"unique"`
 	Password string
 }
 
 // RegisterRequest represents the expected request body for registration
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -37,7 +35,6 @@ func RegisterHandler(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 		req.Username = strings.TrimSpace(strings.ToLower(req.Username))
-		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
 		// Hash the password
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -48,15 +45,14 @@ func RegisterHandler(conf *configuration.Dependencies) gin.HandlerFunc {
 
 		// Check if the email or username already exists
 		var existingUser user.User
-		if err := conf.Db.Where("lower(email) = ? OR lower(username) = ?", req.Email, req.Username).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Username or email already exists"})
+		if err := conf.Db.Where("lower(username) = ?", req.Username).First(&existingUser).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
 			return
 		}
 
 		// Create the user model
 		user := user.User{
 			Username:  req.Username,
-			Email:     req.Email,
 			Password:  string(hashedPassword),
 			IsActive:  true, // Set default values as necessary
 			LastLogin: time.Now(),
