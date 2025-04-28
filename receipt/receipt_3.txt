@@ -1,0 +1,11 @@
+Reservation Receipt
+--------------------
+Reservation ID: 3
+Name: Tech Summit 2025
+Company: TechCorp Inc.
+Hall ID: 17
+Start Date: 2025-02-05
+End Date: 2025-02-05
+Total Cost: 300.00 BGN
+--------------------
+Generated on: 2025-04-28 16:56:49

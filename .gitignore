@@ -25,6 +25,6 @@ go.work.sum
 .env
 
 .idea
-logs
-uploads
-receipt
+#logs
+#uploads
+#receipt

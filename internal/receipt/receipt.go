@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"storage/models"
+	"storage/internal/models"
 	"time"
 )
 

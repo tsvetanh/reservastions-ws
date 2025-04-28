@@ -1,10 +1,10 @@
-package login
+package handlers
 
 import (
-	"net/http"
 	"os"
 	"storage/configuration"
-	"storage/services/user"
+	"storage/internal/models"
+	. "storage/internal/utils"
 	"strings"
 
 	"time"
@@ -14,38 +14,31 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// User struct to represent the expected request body
-type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// Claims struct to include within the JWT token
-type Claims struct {
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
-
 // LoginHandler handles the login requests
 func LoginHandler(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		type User struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
 		var inputUser User
 		jwtKey := os.Getenv("JWT_SECRET_KEY")
+
 		if err := c.ShouldBindJSON(&inputUser); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
 
 		inputUser.Username = strings.TrimSpace(strings.ToLower(inputUser.Username))
 
-		var dbUser user.User
+		var dbUser models.User
 		if err := conf.Db.Preload("Roles").Where("lower(username) = ?", inputUser.Username).First(&dbUser).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			SendError(c, INVALID_CREDENTIALS, err)
 			return
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(inputUser.Password)); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			SendError(c, INVALID_CREDENTIALS, err)
 			return
 		}
 
@@ -55,16 +48,15 @@ func LoginHandler(conf *configuration.Dependencies) gin.HandlerFunc {
 		})
 
 		tokenString, err := token.SignedString([]byte(jwtKey))
-
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})
+			SendError(c, TOKEN_CREATION_FAILED, err)
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
+		SendSuccessBody(c, gin.H{
 			"username": inputUser.Username,
 			"token":    tokenString,
-			"roles":    dbUser.Roles,
+			"roles":    dbUser.GetRoleNames(),
 		})
 	}
 }

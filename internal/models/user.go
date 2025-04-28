@@ -1,4 +1,4 @@
-package user
+package models
 
 import (
 	"time"
@@ -32,6 +32,14 @@ type ChangePassword struct {
 	CurrPassword   string `json:"curr_password"`
 	NewPassword    string `json:"new_password"`
 	RepeatPassword string `json:"repeat_password"`
+}
+
+func (u User) GetRoleNames() []string {
+	var roleNames = make([]string, 0)
+	for _, role := range u.Roles {
+		roleNames = append(roleNames, role.RoleName)
+	}
+	return roleNames
 }
 
 func (Role) TableName() string {

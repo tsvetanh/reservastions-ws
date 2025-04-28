@@ -8,8 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"storage/configuration"
-	"storage/models"
-	"storage/services/user"
+	models2 "storage/internal/models"
 	"syscall"
 	"time"
 )
@@ -40,7 +39,7 @@ func main() {
 
 	go configuration.KeepConnectionsAlive(d.Db, time.Minute*5)
 
-	d.Db.AutoMigrate(user.User{}, user.UserRoles{}, user.Role{}, models.Hall{}, models.HallImage{}, models.Reservation{})
+	d.Db.AutoMigrate(models2.User{}, models2.UserRoles{}, models2.Role{}, models2.Hall{}, models2.HallImage{}, models2.Reservation{})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

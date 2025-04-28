@@ -1,12 +1,12 @@
-package hall
+package services
 
 import (
-	"net/http"
+	models2 "storage/internal/models"
+	. "storage/internal/utils"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"storage/configuration"
-	"storage/models"
 	"strconv"
 )
 
@@ -17,20 +17,14 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		hallIDStr := c.Param("id")
 		hallID, err := strconv.ParseUint(hallIDStr, 10, 64)
 
-		//Skip DB operations if DB is not initialized
-		if conf.Db == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled. Cannot create reservation."})
-			return
-		}
-
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hall ID"})
+			SendError(c, INVALID_HALL_ID, err)
 			return
 		}
 
-		var hall models.Hall
+		var hall models2.Hall
 		if err := conf.Db.First(&hall, hallID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Hall not found"})
+			SendError(c, HALL_NOT_FOUND, err)
 			return
 		}
 
@@ -39,7 +33,7 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		if s := c.Query("start_date"); s != "" {
 			startDate, err = time.Parse("2006-01-02", s)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format"})
+				SendError(c, INVALID_DATE_FORMAT, err)
 				return
 			}
 		} else {
@@ -49,7 +43,7 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		if e := c.Query("end_date"); e != "" {
 			endDate, err = time.Parse("2006-01-02", e)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format"})
+				SendError(c, INVALID_DATE_FORMAT, err)
 				return
 			}
 		} else {
@@ -60,11 +54,11 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 		totalDays := int(endDate.Sub(startDate).Hours()/24) + 1
 
 		// Query reservations for this hall overlapping the period.
-		var reservations []models.Reservation
+		var reservations []models2.Reservation
 		if err := conf.Db.
 			Where("hall_id = ? AND start_date <= ? AND end_date >= ?", hall.ID, endDate, startDate).
 			Find(&reservations).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve reservations"})
+			SendError(c, FAILED_GET_RESERVATIONS, err)
 			return
 		}
 
@@ -85,7 +79,7 @@ func GetHallUtilizationRate(conf *configuration.Dependencies) gin.HandlerFunc {
 
 		utilizationRate := (float64(bookedDays) / float64(totalDays)) * 100
 
-		c.JSON(http.StatusOK, gin.H{
+		SendSuccessBody(c, gin.H{
 			"hall_id":          hall.ID,
 			"period":           gin.H{"start": startDate.Format("2006-01-02"), "end": endDate.Format("2006-01-02")},
 			"total_days":       totalDays,

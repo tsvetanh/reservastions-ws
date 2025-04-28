@@ -3,12 +3,12 @@ package admin
 import (
 	"fmt"
 	"os"
+	"storage/internal/models"
 	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 	"storage/configuration"
-	"storage/models"
 )
 
 // InitConfig initializes the configuration only when needed.
