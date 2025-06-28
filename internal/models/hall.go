@@ -23,7 +23,7 @@ type HallImage struct {
 	ID        uint   `gorm:"primaryKey"`
 	HallID    uint   `gorm:"not null"`
 	ImageName string `gorm:"size:255"`
-	Hall      Hall   `gorm:"foreignKey:HallID"`
+	Hall      Hall   `gorm:"foreignKey:HallID" json:"-"`
 }
 
 // TableName sets the table name for the Hall model in the database.

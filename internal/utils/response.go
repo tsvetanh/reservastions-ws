@@ -7,6 +7,12 @@ import (
 	"runtime/debug"
 )
 
+type Response struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Body    interface{} `json:"body"`
+}
+
 // SendErrorBody sends a structured error response with code, message, and the corresponding HTTP status
 func SendErrorBody(c *gin.Context, code int, body interface{}, err error) {
 	errorDetails, exists := ErrorMessages[code]
@@ -18,7 +24,11 @@ func SendErrorBody(c *gin.Context, code int, body interface{}, err error) {
 		log.Printf("Unknown error code: %d\nError details: %v\nStack trace: %s", code, err, debug.Stack())
 	}
 
-	log.Printf("Error %d: %s\n%s", code, errorDetails.Message, err.Error())
+	if err != nil {
+		log.Printf("Error %d: %s\n%s", code, errorDetails.Message, err.Error())
+	} else {
+		log.Printf("Error %d: %s\n(no additional error details)", code, errorDetails.Message)
+	}
 	sendResponse(c, errorDetails.HTTPStatus, code, errorDetails.Message, body)
 	c.Abort()
 }

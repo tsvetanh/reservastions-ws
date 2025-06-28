@@ -4,6 +4,12 @@ import (
 	"time"
 )
 
+// DateRange represents a suggested available period.
+type DateRange struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
 // Reservation represents a booking made for a hall.
 type Reservation struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
@@ -23,7 +29,7 @@ func (Reservation) TableName() string {
 
 // CalculateTotalCost calculates the total cost of the reservation based on the hall's cost per day.
 // If the reservation lasts longer than 7 days, a 10% discount is applied.
-func (r *Reservation) CalculateTotalCost(costPerDay float64) {
+func (r Reservation) CalculateTotalCost(costPerDay float64) {
 	// Calculate the number of days.
 	days := r.EndDate.Sub(r.StartDate).Hours() / 24
 	if days < 1 {

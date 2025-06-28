@@ -28,9 +28,9 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 
 		// Routes requiring authentication
 		protected := apiGroup.Group("/")
-		protected.Use(AuthMiddleware(d))
-
 		protected.GET("/halls/image/:name", ServeImage())
+
+		protected.Use(AuthMiddleware(d))
 
 		{ // Users Routes
 			usersGroup := protected.Group("/")
