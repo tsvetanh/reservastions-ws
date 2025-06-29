@@ -51,8 +51,8 @@ func registerReservationRoutes(r *gin.RouterGroup, d *configuration.Dependencies
 	resHandler := handlers.NewReservationHandler(d)
 	resGroup := r.Group("/reservations")
 
-	resGroup.POST("/", resHandler.CreateReservation())                    // Create a new reservation
-	resGroup.GET("/", resHandler.GetReservations())                       // Get all reservations
+	resGroup.POST("", resHandler.CreateReservation())                     // Create a new reservation
+	resGroup.GET("", resHandler.GetReservations())                        // Get all reservations
 	resGroup.DELETE("/:id", resHandler.DeleteReservation())               // Delete a reservation by ID
 	resGroup.PUT("/:id", resHandler.UpdateReservation())                  // Manage/Modify reservations
 	resGroup.GET("/categorized", resHandler.GetCategorizedReservations()) // New endpoint for categorized reservations.
@@ -82,8 +82,8 @@ func registerHallRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
 	hallHandler := handlers.NewHallHandler(d)
 	hallGroup := r.Group("/halls")
 
-	hallGroup.POST("/", hallHandler.CreateHall())      // Create a new hall
-	hallGroup.GET("/", hallHandler.GetHalls())         // Get all halls
+	hallGroup.POST("", hallHandler.CreateHall())       // Create a new hall
+	hallGroup.GET("", hallHandler.GetHalls())          // Get all halls
 	hallGroup.GET("/:id", hallHandler.GetHall())       // Get a hall by ID
 	hallGroup.PUT("/:id", hallHandler.UpdateHall())    // Update a hall by ID
 	hallGroup.DELETE("/:id", hallHandler.DeleteHall()) // Delete a hall by ID
