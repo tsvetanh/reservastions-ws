@@ -4,16 +4,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"storage/configuration"
-	. "storage/internal/handlers"
+	"storage/internal/handlers"
 	"storage/internal/services"
-	. "storage/middleware"
+	"storage/middleware"
 )
 
 func Routes(d *configuration.Dependencies) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(LoggingMiddleware)
-	r.Use(CORSandCSP())
+	r.Use(middleware.LoggingMiddleware)
+	r.Use(middleware.CORSandCSP())
 
 	r.GET("/version", func(c *gin.Context) {
 		c.String(http.StatusOK, "This is version 3.0 - updates: Full code refactoring; Standardize response structure and error handling")
@@ -22,52 +22,72 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 	apiGroup := r.Group("/api")
 	{
 		// Public routes
-		apiGroup.POST("/login", LoginHandler(d))
-		// Register route
-		apiGroup.POST("/register", RegisterHandler(d))
+		apiGroup.POST("/login", handlers.LoginHandler(d))
+		apiGroup.POST("/register", handlers.RegisterHandler(d))
 
-		// Routes requiring authentication
-		protected := apiGroup.Group("/")
-		protected.GET("/halls/image/:name", ServeImage())
+		apiGroup.GET("/halls/images/:name", handlers.ServeImage()) // Get image by name
 
-		protected.Use(AuthMiddleware(d))
+		// Authenticated routes
+		userGroup := apiGroup.Group("/")
+		userGroup.Use(middleware.AuthMiddleware(d))
+		userGroup.Use(middleware.AllowedRoles("user"))
 
-		{ // Users Routes
-			usersGroup := protected.Group("/")
-			usersGroup.Use(AllowedRoles("admin"))
+		registerHallRoutes(userGroup, d)
+		registerReservationRoutes(userGroup, d)
 
-			usersGroup.GET("/users", HandlerGetAllUsers(d))
-			usersGroup.GET("/roles", HandlerGetAllRoles(d))
-			usersGroup.POST("/add-role", HandlerInsertRole(d))
-			usersGroup.POST("/update-role", HandlerUpdateRole(d))
-			usersGroup.POST("/assign-role", HandlerAssignRole(d))
-			usersGroup.POST("/revoke-role", HandlerRevokeRole(d))
-		}
+		// Admin-only routes
+		adminGroup := userGroup.Group("/admin")
+		adminGroup.Use(middleware.AllowedRoles("admin"))
 
-		{ // Hall Management Routes
-			hallGroup := protected.Group("/halls")
-			hallGroup.Use(AllowedRoles("user"))
+		registerUserRoleRoutes(adminGroup, d)
 
-			hallGroup.POST("", CreateHall(d))                                     // Create a new hall
-			hallGroup.GET("", GetHalls(d))                                        // Get all halls
-			hallGroup.PUT("/:id", UpdateHall(d))                                  // Update a hall by ID
-			hallGroup.DELETE("/:id", DeleteHall(d))                               // Delete a hall by ID
-			hallGroup.GET("/:id/utilization", services.GetHallUtilizationRate(d)) // Statistics on Hall usage
-		}
-
-		{ // Reservation Management Routes
-			reservationGroup := protected.Group("/reservations")
-			reservationGroup.Use(AllowedRoles("user"))
-
-			reservationGroup.POST("", CreateReservation(d))                     // Create a new reservation
-			reservationGroup.GET("", GetReservations(d))                        // Get all reservations
-			reservationGroup.DELETE("/:id", DeleteReservation(d))               // Delete a reservation by ID
-			reservationGroup.PUT("/:id", UpdateReservation(d))                  // Manage/Modify reservations
-			reservationGroup.GET("/categorized", GetCategorizedReservations(d)) // New endpoint for categorized reservations.
-			reservationGroup.GET("/summary", GetReservationSummary(d))          // Dashboard for reservations
-		}
 	}
 
 	return r
+}
 
+// --- Reservation Routes ---
+func registerReservationRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
+	resHandler := handlers.NewReservationHandler(d)
+	resGroup := r.Group("/reservations")
+
+	resGroup.POST("/", resHandler.CreateReservation())                    // Create a new reservation
+	resGroup.GET("/", resHandler.GetReservations())                       // Get all reservations
+	resGroup.DELETE("/:id", resHandler.DeleteReservation())               // Delete a reservation by ID
+	resGroup.PUT("/:id", resHandler.UpdateReservation())                  // Manage/Modify reservations
+	resGroup.GET("/categorized", resHandler.GetCategorizedReservations()) // New endpoint for categorized reservations.
+	resGroup.GET("/summary", resHandler.GetReservationSummary())          // Dashboard for reservations
+
+}
+
+// --- User & Role Routes ---
+func registerUserRoleRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
+	userHandler := handlers.NewUserHandler(d)
+
+	// Users
+	r.GET("/users", userHandler.GetAllUsers()) // Get all users
+
+	// Roles
+	r.GET("/roles", userHandler.GetAllRoles())    // Get all roles
+	r.POST("/roles", userHandler.InsertRole())    // Create new role
+	r.PUT("/roles/:id", userHandler.UpdateRole()) // Update role
+
+	// Role assignment
+	r.POST("/users/:id/roles", userHandler.AssignRole())         // Assign role to a user
+	r.DELETE("/users/:id/roles/:role", userHandler.RevokeRole()) // Revoke role from a user
+}
+
+// --- Hall Routes ---
+func registerHallRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
+	hallHandler := handlers.NewHallHandler(d)
+	hallGroup := r.Group("/halls")
+
+	hallGroup.POST("/", hallHandler.CreateHall())      // Create a new hall
+	hallGroup.GET("/", hallHandler.GetHalls())         // Get all halls
+	hallGroup.GET("/:id", hallHandler.GetHall())       // Get a hall by ID
+	hallGroup.PUT("/:id", hallHandler.UpdateHall())    // Update a hall by ID
+	hallGroup.DELETE("/:id", hallHandler.DeleteHall()) // Delete a hall by ID
+
+	hallGroup.POST("/:id/images", hallHandler.AddHallImages())            // Upload images for a hall
+	hallGroup.GET("/:id/utilization", services.GetHallUtilizationRate(d)) // Statistics on Hall usage
 }

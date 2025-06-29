@@ -25,9 +25,9 @@ func SendErrorBody(c *gin.Context, code int, body interface{}, err error) {
 	}
 
 	if err != nil {
-		log.Printf("Error %d: %s\n%s", code, errorDetails.Message, err.Error())
+		log.Printf("Error %d: %s : %s", code, errorDetails.Message, err.Error())
 	} else {
-		log.Printf("Error %d: %s\n(no additional error details)", code, errorDetails.Message)
+		log.Printf("Error %d: %s : (no additional error details)", code, errorDetails.Message)
 	}
 	sendResponse(c, errorDetails.HTTPStatus, code, errorDetails.Message, body)
 	c.Abort()

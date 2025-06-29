@@ -13,12 +13,17 @@ const (
 	INVALID_TOKEN_CLAIMS
 	USERNAME_NOT_IN_TOKEN
 	USER_NOT_IN_CONTEXT
+	USER_NOT_FOUND
+	INVALID_USER_ID_PARAM
 	ACCESS_DENIED
 	FAILED_GET_USERS
 	FAILED_UPDATE_ROLE
 	FAILED_ASSIGN_ROLE
 	FAILED_REVOKE_ROLE
 	FAILED_GET_ROLES
+	ROLE_NOT_FOUND
+	INVALID_ROLE_ID_PARAM
+	MISSING_IMAGES
 	USERNAME_EXISTS
 	FAILED_CREATE_ROLE
 	FAILED_CREATE_USER
@@ -35,6 +40,7 @@ const (
 	FAILED_SAVE_IMAGE_DATA
 	IMAGE_NOT_FOUND
 	FAILED_GET_HALLS
+	FAILED_UPDATE_HALL
 	FAILED_DELETE_HALL
 	HALL_NOT_FOUND
 	INVALID_HALL_ID
@@ -92,6 +98,14 @@ var ErrorMessages = map[int]ErrorDetails{
 		HTTPStatus: http.StatusInternalServerError,
 		Message:    "'user' not found in gin context",
 	},
+	USER_NOT_FOUND: {
+		HTTPStatus: http.StatusInternalServerError,
+		Message:    "User not found",
+	},
+	INVALID_USER_ID_PARAM: {
+		HTTPStatus: http.StatusBadRequest,
+		Message:    "User id should be a number",
+	},
 	ACCESS_DENIED: {
 		HTTPStatus: http.StatusForbidden,
 		Message:    "Access denied",
@@ -115,6 +129,18 @@ var ErrorMessages = map[int]ErrorDetails{
 	FAILED_GET_ROLES: {
 		HTTPStatus: http.StatusInternalServerError,
 		Message:    "Failed to retrieve roles",
+	},
+	ROLE_NOT_FOUND: {
+		HTTPStatus: http.StatusInternalServerError,
+		Message:    "Role not found",
+	},
+	INVALID_ROLE_ID_PARAM: {
+		HTTPStatus: http.StatusBadRequest,
+		Message:    "Role id should be a number",
+	},
+	MISSING_IMAGES: {
+		HTTPStatus: http.StatusBadRequest,
+		Message:    "No images in form-data found",
 	},
 	USERNAME_EXISTS: {
 		HTTPStatus: http.StatusConflict,
@@ -171,6 +197,10 @@ var ErrorMessages = map[int]ErrorDetails{
 	FAILED_DELETE_HALL: {
 		HTTPStatus: http.StatusInternalServerError,
 		Message:    "Failed to delete hall",
+	},
+	FAILED_UPDATE_HALL: {
+		HTTPStatus: http.StatusInternalServerError,
+		Message:    "Failed to update hall",
 	},
 	FAILED_SAVE_IMAGE: {
 		HTTPStatus: http.StatusInternalServerError,

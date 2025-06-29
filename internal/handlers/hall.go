@@ -9,12 +9,25 @@ import (
 	"path/filepath"
 	"storage/configuration"
 	"storage/internal/models"
+	"storage/internal/repos"
 	. "storage/internal/utils"
 	"time"
 )
 
-// CreateHall handles the creation of a new hall.
-func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
+type HallHandler struct {
+	Repo *repos.BaseRepository[models.Hall]
+	Conf *configuration.Dependencies
+}
+
+func NewHallHandler(conf *configuration.Dependencies) *HallHandler {
+	return &HallHandler{
+		Repo: &repos.BaseRepository[models.Hall]{DB: conf.Db},
+		Conf: conf,
+	}
+}
+
+// CreateHall handles the creation of a new hall with optional image upload.
+func (h *HallHandler) CreateHall() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		form, err := c.MultipartForm()
 		if err != nil {
@@ -29,8 +42,7 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 		}
 
 		var hall models.Hall
-		err = json.Unmarshal([]byte(hallData[0]), &hall)
-		if err != nil {
+		if err := json.Unmarshal([]byte(hallData[0]), &hall); err != nil {
 			SendError(c, INVALID_HALL_DATA, err)
 			return
 		}
@@ -51,7 +63,7 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 			}
 		}
 
-		if err := conf.Db.Create(&hall).Error; err != nil {
+		if err := h.Repo.Create(&hall); err != nil {
 			SendError(c, FAILED_CREATE_HALL, err)
 			return
 		}
@@ -59,7 +71,6 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 		files := form.File["images"]
 		for _, file := range files {
 			filename := fmt.Sprintf("%d_%s", hall.ID, file.Filename)
-
 			if err := c.SaveUploadedFile(file, "uploads/"+filename); err != nil {
 				SendError(c, FAILED_SAVE_IMAGE, err)
 				return
@@ -69,8 +80,7 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 				HallID:    hall.ID,
 				ImageName: filename,
 			}
-
-			if err := conf.Db.Create(&image).Error; err != nil {
+			if err := h.Conf.Db.Create(&image).Error; err != nil {
 				SendError(c, FAILED_SAVE_IMAGE_DATA, err)
 				return
 			}
@@ -80,33 +90,57 @@ func CreateHall(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-func ServeImage() gin.HandlerFunc {
+// AddHallImages handles the uploading new images for a hall
+func (h *HallHandler) AddHallImages() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Param("name")
+		id := c.Param("id")
 
-		imagePath := filepath.Join("uploads/", path)
-
-		if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-			SendError(c, IMAGE_NOT_FOUND, err)
+		var hall models.Hall
+		if err := h.Repo.GetByID(id, &hall); err != nil {
+			SendError(c, HALL_NOT_FOUND, err)
 			return
 		}
 
-		ext := filepath.Ext(path)
-		var contentType string
-		switch ext {
-		case ".jpg", ".jpeg":
-			contentType = "image/jpeg"
-		case ".png":
-			contentType = "image/png"
-		case ".gif":
-			contentType = "image/gif"
-		default:
-			contentType = "application/octet-stream"
+		form, err := c.MultipartForm()
+		if err != nil {
+			SendError(c, INVALID_REQ_PAYLOAD, err)
+			return
 		}
 
-		c.Header("Content-Type", contentType)
+		files := form.File["images"]
+		if len(files) == 0 {
+			SendError(c, MISSING_IMAGES, nil)
+			return
+		}
 
-		c.File(imagePath)
+		var savedImages []models.HallImage
+		for _, file := range files {
+			filename := fmt.Sprintf("%d_%s", hall.ID, file.Filename)
+
+			savePath := filepath.Join("uploads", filename)
+			if err := c.SaveUploadedFile(file, savePath); err != nil {
+				SendError(c, FAILED_SAVE_IMAGE, err)
+				return
+			}
+
+			image := models.HallImage{
+				HallID:    hall.ID,
+				ImageName: filename,
+			}
+
+			if err := h.Conf.Db.Create(&image).Error; err != nil {
+				SendError(c, FAILED_SAVE_IMAGE_DATA, err)
+				return
+			}
+
+			savedImages = append(savedImages, image)
+		}
+
+		SendSuccessBody(c, gin.H{
+			"message": "Images uploaded successfully",
+			"count":   len(savedImages),
+			"images":  savedImages,
+		})
 	}
 }
 
@@ -147,22 +181,40 @@ func CreateHall_old(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-// GetHalls retrieves all available halls.
-func GetHalls(conf *configuration.Dependencies) gin.HandlerFunc {
+// GetHall retrieves hall with reservations and images.
+func (h *HallHandler) GetHall() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		var hall models.Hall
+		if err := h.Repo.GetByID(id, &hall, "Reservations", "HallImages"); err != nil {
+			SendError(c, HALL_NOT_FOUND, err)
+			return
+		}
+
+		// Populate image URLs
+		for _, image := range hall.HallImages {
+			hall.ImageURLs = append(hall.ImageURLs, image.ImageName)
+		}
+
+		SendSuccessBody(c, hall)
+	}
+}
+
+// GetHalls retrieves all halls with reservations and images.
+func (h *HallHandler) GetHalls() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var halls []models.Hall
-
-		if err := conf.Db.Preload("Reservations").Preload("HallImages").Find(&halls).Error; err != nil {
+		err := h.Repo.GetAll(&halls, "Reservations", "HallImages")
+		if err != nil {
 			SendError(c, FAILED_GET_HALLS, err)
 			return
 		}
 
 		for i := range halls {
-			var imagePaths []string
 			for _, image := range halls[i].HallImages {
-				imagePaths = append(imagePaths, image.ImageName)
+				halls[i].ImageURLs = append(halls[i].ImageURLs, image.ImageName)
 			}
-			halls[i].ImageURLs = imagePaths
 		}
 
 		SendSuccessBody(c, halls)
@@ -180,37 +232,77 @@ func GetHalls_old(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-// UpdateHall modifies an existing hall.
-func UpdateHall(conf *configuration.Dependencies) gin.HandlerFunc {
+// UpdateHall updates a hall by ID.
+func (h *HallHandler) UpdateHall() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		var hall models.Hall
-		if err := conf.Db.First(&hall, id).Error; err != nil {
+		var existing models.Hall
+		if err := h.Repo.GetByID(id, &existing); err != nil {
 			SendError(c, HALL_NOT_FOUND, err)
 			return
 		}
 
-		if err := c.ShouldBindJSON(&hall); err != nil {
+		if err := c.ShouldBindJSON(&existing); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
 
-		conf.Db.Save(&hall)
-		SendSuccessBody(c, hall)
+		if err := h.Repo.Update(id, &existing); err != nil {
+			SendError(c, FAILED_UPDATE_HALL, err)
+			return
+		}
+
+		SendSuccessBody(c, existing)
 	}
 }
 
-// DeleteHall removes a hall.
-func DeleteHall(conf *configuration.Dependencies) gin.HandlerFunc {
+// DeleteHall deletes a hall by ID.
+func (h *HallHandler) DeleteHall() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		if err := conf.Db.Delete(&models.Hall{}, id).Error; err != nil {
+		if err := h.Repo.Delete(id); err != nil {
 			SendError(c, FAILED_DELETE_HALL, err)
 			return
 		}
 
 		SendSuccess(c)
+	}
+}
+
+// ServeImage retrieves an image
+func ServeImage() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Param("name")
+
+		if path == "default.png" {
+			SendSuccess(c)
+			return
+		}
+
+		imagePath := filepath.Join("uploads/", path)
+
+		if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+			SendError(c, IMAGE_NOT_FOUND, err)
+			return
+		}
+
+		ext := filepath.Ext(path)
+		var contentType string
+		switch ext {
+		case ".jpg", ".jpeg":
+			contentType = "image/jpeg"
+		case ".png":
+			contentType = "image/png"
+		case ".gif":
+			contentType = "image/gif"
+		default:
+			contentType = "application/octet-stream"
+		}
+
+		c.Header("Content-Type", contentType)
+
+		c.File(imagePath)
 	}
 }

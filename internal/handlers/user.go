@@ -1,17 +1,34 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
-	"net/http"
 	"storage/configuration"
+	"storage/internal/models"
 	"storage/internal/repos"
 	. "storage/internal/utils"
+	"strconv"
 )
 
-func HandlerGetAllUsers(conf *configuration.Dependencies) gin.HandlerFunc {
+type UserHandler struct {
+	UserRepo *repos.BaseRepository[models.User]
+	RoleRepo *repos.BaseRepository[models.Role]
+	Conf     *configuration.Dependencies
+}
+
+func NewUserHandler(conf *configuration.Dependencies) *UserHandler {
+	return &UserHandler{
+		UserRepo: &repos.BaseRepository[models.User]{DB: conf.Db},
+		RoleRepo: &repos.BaseRepository[models.Role]{DB: conf.Db},
+		Conf:     conf,
+	}
+}
+
+// GetAllUsers retrieves all users
+func (h *UserHandler) GetAllUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		users, err := repos.RepoGetAllUsers(conf.Db)
-		if err != nil {
+		var users []models.User
+		if err := h.UserRepo.GetAll(&users); err != nil {
 			SendError(c, FAILED_GET_USERS, err)
 			return
 		}
@@ -19,19 +36,27 @@ func HandlerGetAllUsers(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-func HandlerInsertRole(conf *configuration.Dependencies) gin.HandlerFunc {
+// GetAllRoles retrieves all roles
+func (h *UserHandler) GetAllRoles() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type NewRole struct {
-			RoleName string `json:"role_name"`
+		var roles []models.Role
+		if err := h.RoleRepo.GetAll(&roles); err != nil {
+			SendError(c, FAILED_GET_ROLES, err)
+			return
 		}
-		var newRole NewRole
-		if err := c.BindJSON(&newRole); err != nil {
+		SendSuccessBody(c, roles)
+	}
+}
+
+// InsertRole handles the creating of new roles
+func (h *UserHandler) InsertRole() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var newRole models.Role
+		if err := c.ShouldBindJSON(&newRole); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
-
-		err := repos.RepoInsertRole(conf.Db, newRole.RoleName)
-		if err != nil {
+		if err := h.RoleRepo.Create(&newRole); err != nil {
 			SendError(c, FAILED_CREATE_ROLE, err)
 			return
 		}
@@ -39,76 +64,111 @@ func HandlerInsertRole(conf *configuration.Dependencies) gin.HandlerFunc {
 	}
 }
 
-func HandlerUpdateRole(conf *configuration.Dependencies) gin.HandlerFunc {
+// UpdateRole updates a role by id
+func (h *UserHandler) UpdateRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type Role struct {
-			RoleId   int64  `json:"role_id"`
-			RoleName string `json:"role_name"`
+		type input struct {
+			RoleName string `json:"role_name" binding:"required"`
 		}
-		var role Role
-		if err := c.BindJSON(&role); err != nil {
+		roleIDParam := c.Param("id")
+		roleID, err := strconv.ParseInt(roleIDParam, 10, 64)
+		if err != nil {
+			SendError(c, INVALID_REQ_PAYLOAD, fmt.Errorf("invalid role ID"))
+			return
+		}
+
+		var dto input
+		if err := c.ShouldBindJSON(&dto); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
 
-		err := repos.RepoUpdateRole(conf.Db, role.RoleId, role.RoleName)
-		if err != nil {
+		role := models.Role{
+			RoleID:   roleID,
+			RoleName: dto.RoleName,
+		}
+
+		if err := h.RoleRepo.Update(roleID, &role); err != nil {
 			SendError(c, FAILED_UPDATE_ROLE, err)
 			return
 		}
+
 		SendSuccess(c)
 	}
 }
 
-func HandlerAssignRole(conf *configuration.Dependencies) gin.HandlerFunc {
+func (h *UserHandler) AssignRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type UserRole struct {
-			RoleId int64 `json:"role_id"`
-			UserId int64 `json:"user_id"`
+		userIDStr := c.Param("id")
+		var input struct {
+			RoleID int64 `json:"role_id"`
 		}
-		var newRole UserRole
-		if err := c.BindJSON(&newRole); err != nil {
+
+		if err := c.ShouldBindJSON(&input); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
 
-		err := repos.RepoAssignRole(conf.Db, newRole.RoleId, newRole.UserId)
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
 		if err != nil {
+			SendError(c, INVALID_USER_ID_PARAM, err)
+			return
+		}
+
+		var user models.User
+		if err := h.Conf.Db.Preload("Roles").First(&user, userID).Error; err != nil {
+			SendError(c, USER_NOT_FOUND, err)
+			return
+		}
+
+		var role models.Role
+		if err := h.Conf.Db.First(&role, input.RoleID).Error; err != nil {
+			SendError(c, ROLE_NOT_FOUND, err)
+			return
+		}
+
+		if err := h.Conf.Db.Model(&user).Association("Roles").Append(&role); err != nil {
 			SendError(c, FAILED_ASSIGN_ROLE, err)
 			return
 		}
+
 		SendSuccess(c)
 	}
 }
 
-func HandlerRevokeRole(conf *configuration.Dependencies) gin.HandlerFunc {
+func (h *UserHandler) RevokeRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type UserRole struct {
-			RoleId int64 `json:"role_id"`
-			UserId int64 `json:"user_id"`
+		userIDStr := c.Param("id")
+		roleIDStr := c.Param("role")
+
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			SendError(c, INVALID_USER_ID_PARAM, err)
+			return
 		}
-		var newRole UserRole
-		if err := c.BindJSON(&newRole); err != nil {
-			SendError(c, INVALID_REQ_PAYLOAD, err)
+		roleID, err := strconv.ParseInt(roleIDStr, 10, 64)
+		if err != nil {
+			SendError(c, INVALID_ROLE_ID_PARAM, err)
 			return
 		}
 
-		err := repos.RepoRevokeRole(conf.Db, newRole.RoleId, newRole.UserId)
-		if err != nil {
+		var user models.User
+		if err := h.Conf.Db.Preload("Roles").First(&user, userID).Error; err != nil {
+			SendError(c, USER_NOT_FOUND, err)
+			return
+		}
+
+		var role models.Role
+		if err := h.Conf.Db.First(&role, roleID).Error; err != nil {
+			SendError(c, ROLE_NOT_FOUND, err)
+			return
+		}
+
+		if err := h.Conf.Db.Model(&user).Association("Roles").Delete(&role); err != nil {
 			SendError(c, FAILED_REVOKE_ROLE, err)
 			return
 		}
-		SendSuccess(c)
-	}
-}
 
-func HandlerGetAllRoles(conf *configuration.Dependencies) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		roles, err := repos.RepoGetAllRoles(conf.Db)
-		if err != nil {
-			SendError(c, FAILED_GET_ROLES, err)
-			return
-		}
-		c.JSON(http.StatusOK, roles)
+		SendSuccess(c)
 	}
 }
