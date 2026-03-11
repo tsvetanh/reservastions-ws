@@ -27,6 +27,7 @@ const (
 	USERNAME_EXISTS
 	FAILED_CREATE_ROLE
 	FAILED_CREATE_USER
+	FAILED_CREATE_TOKEN
 	INVALID_CREDENTIALS
 	TOKEN_CREATION_FAILED
 	INVALID_HALL_DATA
@@ -153,6 +154,10 @@ var ErrorMessages = map[int]ErrorDetails{
 	FAILED_CREATE_USER: {
 		HTTPStatus: http.StatusInternalServerError,
 		Message:    "Failed to create user",
+	},
+	FAILED_CREATE_TOKEN: {
+		HTTPStatus: http.StatusInternalServerError,
+		Message:    "Failed to create token",
 	},
 	INVALID_CREDENTIALS: {
 		HTTPStatus: http.StatusUnauthorized,

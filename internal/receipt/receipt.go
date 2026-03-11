@@ -44,8 +44,8 @@ func GenerateReceipt(reservation *models.Reservation) error {
 			"--------------------\n"+
 			"Generated on: %s\n",
 		reservation.ID,
-		reservation.Name,
-		reservation.Company,
+		reservation.FirstName,
+		reservation.LastName,
 		reservation.HallID,
 		reservation.StartDate.Format("2006-01-02"),
 		reservation.EndDate.Format("2006-01-02"),

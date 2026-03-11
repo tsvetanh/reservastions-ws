@@ -10,7 +10,7 @@ import (
 type Response struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
-	Body    interface{} `json:"body"`
+	Body    interface{} `json:"body,omitempty"`
 }
 
 // SendErrorBody sends a structured error response with code, message, and the corresponding HTTP status

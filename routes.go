@@ -22,8 +22,7 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 	apiGroup := r.Group("/api")
 	{
 		// Public routes
-		apiGroup.POST("/login", handlers.LoginHandler(d))
-		apiGroup.POST("/register", handlers.RegisterHandler(d))
+		registerAuthRoutes(apiGroup, d)
 
 		apiGroup.GET("/halls/images/:name", handlers.ServeImage()) // Get image by name
 
@@ -46,6 +45,16 @@ func Routes(d *configuration.Dependencies) *gin.Engine {
 	return r
 }
 
+func registerAuthRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
+	authHandler := handlers.NewAuthHandler(d)
+	authGroup := r.Group("/auth")
+
+	authGroup.POST("/login", authHandler.LoginHandler())
+	authGroup.POST("/register", authHandler.RegisterHandler())
+	authGroup.POST("/refresh", authHandler.RefreshHandler())
+	authGroup.POST("/logout", authHandler.LogoutHandler())
+}
+
 // --- Reservation Routes ---
 func registerReservationRoutes(r *gin.RouterGroup, d *configuration.Dependencies) {
 	resHandler := handlers.NewReservationHandler(d)
@@ -55,7 +64,7 @@ func registerReservationRoutes(r *gin.RouterGroup, d *configuration.Dependencies
 	resGroup.GET("", resHandler.GetReservations())                        // Get all reservations
 	resGroup.DELETE("/:id", resHandler.DeleteReservation())               // Delete a reservation by ID
 	resGroup.PUT("/:id", resHandler.UpdateReservation())                  // Manage/Modify reservations
-	resGroup.GET("/categorized", resHandler.GetCategorizedReservations()) // New endpoint for categorized reservations.
+	resGroup.GET("/categorized", resHandler.GetCategorizedReservations()) // New endpoint for categorized reservations
 	resGroup.GET("/summary", resHandler.GetReservationSummary())          // Dashboard for reservations
 
 }

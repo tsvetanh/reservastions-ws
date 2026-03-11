@@ -10,24 +10,28 @@ import (
 	"strings"
 )
 
+var jwtKey = []byte(os.Getenv("JWT_SECRET_KEY"))
+
 type UserDetails struct {
-	username string
-	roles    []string
+	Username string
+	Roles    []string
+}
+
+func (u UserDetails) HasRole(role string) bool {
+	role = strings.ToLower(role)
+	for _, r := range u.Roles {
+		if strings.ToLower(r) == role {
+			return true
+		}
+	}
+	return false
 }
 
 func AuthMiddleware(conf *configuration.Dependencies) gin.HandlerFunc {
-	jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
+		tokenString, err := c.Cookie("access_token")
+		if err != nil || tokenString == "" {
 			SendError(c, MISSING_TOKEN, nil)
-			return
-		}
-
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
-			tokenString = tokenString[7:]
-		} else {
-			SendError(c, INVALID_TOKEN_FORMAT, nil)
 			return
 		}
 
@@ -37,7 +41,6 @@ func AuthMiddleware(conf *configuration.Dependencies) gin.HandlerFunc {
 			}
 			return jwtKey, nil
 		})
-
 		if err != nil || !token.Valid {
 			SendError(c, INVALID_TOKEN, err)
 			return
@@ -60,7 +63,11 @@ func AuthMiddleware(conf *configuration.Dependencies) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user", UserDetails{username: username, roles: dbUser.GetRoleNames()})
+		c.Set("user", UserDetails{
+			Username: dbUser.Username,
+			Roles:    dbUser.GetRoleNames(),
+		})
+
 		c.Next()
 	}
 }
@@ -74,7 +81,7 @@ func AllowedRoles(allowedRoles ...string) gin.HandlerFunc {
 			SendError(c, USER_NOT_IN_CONTEXT, nil)
 			return
 		}
-		roles := u.(UserDetails).roles
+		roles := u.(UserDetails).Roles
 
 		for _, allowedRole := range allowedRoles {
 			for _, userRole := range roles {

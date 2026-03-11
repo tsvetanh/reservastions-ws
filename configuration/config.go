@@ -36,6 +36,11 @@ func Init() (*Dependencies, error) {
 		return nil, err
 	}
 
+	err = CreateOrReplaceUpdateStatusEvent(db)
+	if err != nil {
+		panic("failed to create event: " + err.Error())
+	}
+
 	return &Dependencies{
 		Cfg: &usedConfig,
 		Db:  db,
@@ -97,4 +102,29 @@ func validateConfig(cfg *MainConfig) error {
 		return err
 	}
 	return nil
+}
+
+func CreateOrReplaceUpdateStatusEvent(db *gorm.DB) error {
+	dropSQL := `DROP EVENT IF EXISTS update_reservation_status;`
+	createSQL := `
+    CREATE EVENT update_reservation_status
+    ON SCHEDULE EVERY 1 SECOND
+    DO
+    BEGIN
+      UPDATE hall_res_project.reservations
+      SET status = 'inProgress'
+      WHERE CURDATE() BETWEEN DATE(start_date) AND DATE(end_date)
+        AND status != 'inProgress';
+
+      UPDATE hall_res_project.reservations
+      SET status = 'done'
+      WHERE CURDATE() > DATE(end_date)
+        AND status != 'done';
+    END;
+    `
+
+	if err := db.Exec(dropSQL).Error; err != nil {
+		return err
+	}
+	return db.Exec(createSQL).Error
 }

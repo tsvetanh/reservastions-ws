@@ -8,20 +8,20 @@ import (
 	"os"
 	"path/filepath"
 	"storage/configuration"
-	"storage/internal/models"
-	"storage/internal/repos"
+	. "storage/internal/models"
+	"storage/internal/repository"
 	. "storage/internal/utils"
 	"time"
 )
 
 type HallHandler struct {
-	Repo *repos.BaseRepository[models.Hall]
+	Repo *repository.BaseRepository[Hall]
 	Conf *configuration.Dependencies
 }
 
 func NewHallHandler(conf *configuration.Dependencies) *HallHandler {
 	return &HallHandler{
-		Repo: &repos.BaseRepository[models.Hall]{DB: conf.Db},
+		Repo: &repository.BaseRepository[Hall]{DB: conf.Db},
 		Conf: conf,
 	}
 }
@@ -41,7 +41,7 @@ func (h *HallHandler) CreateHall() gin.HandlerFunc {
 			return
 		}
 
-		var hall models.Hall
+		var hall Hall
 		if err := json.Unmarshal([]byte(hallData[0]), &hall); err != nil {
 			SendError(c, INVALID_HALL_DATA, err)
 			return
@@ -76,7 +76,7 @@ func (h *HallHandler) CreateHall() gin.HandlerFunc {
 				return
 			}
 
-			image := models.HallImage{
+			image := HallImage{
 				HallID:    hall.ID,
 				ImageName: filename,
 			}
@@ -95,7 +95,7 @@ func (h *HallHandler) AddHallImages() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		var hall models.Hall
+		var hall Hall
 		if err := h.Repo.GetByID(id, &hall); err != nil {
 			SendError(c, HALL_NOT_FOUND, err)
 			return
@@ -113,7 +113,7 @@ func (h *HallHandler) AddHallImages() gin.HandlerFunc {
 			return
 		}
 
-		var savedImages []models.HallImage
+		var savedImages []HallImage
 		for _, file := range files {
 			filename := fmt.Sprintf("%d_%s", hall.ID, file.Filename)
 
@@ -123,7 +123,7 @@ func (h *HallHandler) AddHallImages() gin.HandlerFunc {
 				return
 			}
 
-			image := models.HallImage{
+			image := HallImage{
 				HallID:    hall.ID,
 				ImageName: filename,
 			}
@@ -146,7 +146,7 @@ func (h *HallHandler) AddHallImages() gin.HandlerFunc {
 
 func CreateHall_old(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var hall models.Hall
+		var hall Hall
 		if err := c.ShouldBindJSON(&hall); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 			return
@@ -186,7 +186,7 @@ func (h *HallHandler) GetHall() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		var hall models.Hall
+		var hall Hall
 		if err := h.Repo.GetByID(id, &hall, "Reservations", "HallImages"); err != nil {
 			SendError(c, HALL_NOT_FOUND, err)
 			return
@@ -204,7 +204,7 @@ func (h *HallHandler) GetHall() gin.HandlerFunc {
 // GetHalls retrieves all halls with reservations and images.
 func (h *HallHandler) GetHalls() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var halls []models.Hall
+		var halls []Hall
 		err := h.Repo.GetAll(&halls, "Reservations", "HallImages")
 		if err != nil {
 			SendError(c, FAILED_GET_HALLS, err)
@@ -223,7 +223,7 @@ func (h *HallHandler) GetHalls() gin.HandlerFunc {
 
 func GetHalls_old(conf *configuration.Dependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var halls []models.Hall
+		var halls []Hall
 		if err := conf.Db.Find(&halls).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve halls"})
 			return
@@ -237,7 +237,7 @@ func (h *HallHandler) UpdateHall() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		var existing models.Hall
+		var existing Hall
 		if err := h.Repo.GetByID(id, &existing); err != nil {
 			SendError(c, HALL_NOT_FOUND, err)
 			return
@@ -276,7 +276,7 @@ func ServeImage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Param("name")
 
-		if path == "default.png" {
+		if path == "default.jpg" {
 			SendSuccess(c)
 			return
 		}

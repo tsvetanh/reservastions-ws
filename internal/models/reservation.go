@@ -13,13 +13,15 @@ type DateRange struct {
 // Reservation represents a booking made for a hall.
 type Reservation struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	Name      string    `gorm:"not null;size:255" json:"name"`
-	Company   string    `gorm:"not null;size:255" json:"company"`
+	FirstName string    `gorm:"not null;size:255" json:"first_name"`
+	LastName  string    `gorm:"not null;size:255" json:"last_name"`
 	StartDate time.Time `gorm:"not null" json:"start_date"`
 	EndDate   time.Time `gorm:"not null" json:"end_date"`
 	TotalCost float64   `gorm:"not null" json:"total_cost"`
 	HallID    uint      `gorm:"not null" json:"hall_id"`
 	Hall      Hall      `gorm:"foreignKey:HallID" json:"hall,omitempty"`
+	Status    string    `gorm:"default:active" json:"status"`
+	Maker     string    `gorm:"not null" json:"username"`
 }
 
 // TableName sets the table name for the Reservation model in the database.

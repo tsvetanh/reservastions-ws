@@ -15,6 +15,15 @@ type User struct {
 	Roles     []Role    `gorm:"many2many:hall_res_project.users_roles;joinForeignKey:UserID;joinReferences:RoleID" json:"roles,omitempty"`
 }
 
+type RefreshToken struct {
+	ID        uint      `gorm:"column:id;primaryKey"`
+	TokenHash string    `gorm:"column:token_hash;size:500;uniqueIndex;not null"`
+	UserID    int64     `gorm:"column:user_id;not null"`
+	User      User      `gorm:"foreignKey:UserID"`
+	ExpiresAt time.Time `gorm:"column:expires_at;not null"`
+	CreatedAt time.Time
+}
+
 type UserRoles struct {
 	RoleID int64 `gorm:"column:role_id;primaryKey"`
 	UserID int64 `gorm:"column:user_id;primaryKey"`
@@ -52,4 +61,8 @@ func (UserRoles) TableName() string {
 
 func (User) TableName() string {
 	return "hall_res_project.users"
+}
+
+func (RefreshToken) TableName() string {
+	return "hall_res_project.refresh_tokens"
 }

@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"storage/configuration"
-	"storage/internal/models"
-	"storage/internal/repos"
+	. "storage/internal/models"
+	"storage/internal/repository"
 	. "storage/internal/utils"
 	"strconv"
 )
 
 type UserHandler struct {
-	UserRepo *repos.BaseRepository[models.User]
-	RoleRepo *repos.BaseRepository[models.Role]
+	UserRepo *repository.BaseRepository[User]
+	RoleRepo *repository.BaseRepository[Role]
 	Conf     *configuration.Dependencies
 }
 
 func NewUserHandler(conf *configuration.Dependencies) *UserHandler {
 	return &UserHandler{
-		UserRepo: &repos.BaseRepository[models.User]{DB: conf.Db},
-		RoleRepo: &repos.BaseRepository[models.Role]{DB: conf.Db},
+		UserRepo: &repository.BaseRepository[User]{DB: conf.Db},
+		RoleRepo: &repository.BaseRepository[Role]{DB: conf.Db},
 		Conf:     conf,
 	}
 }
@@ -27,7 +27,7 @@ func NewUserHandler(conf *configuration.Dependencies) *UserHandler {
 // GetAllUsers retrieves all users
 func (h *UserHandler) GetAllUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var users []models.User
+		var users []User
 		if err := h.UserRepo.GetAll(&users); err != nil {
 			SendError(c, FAILED_GET_USERS, err)
 			return
@@ -39,7 +39,7 @@ func (h *UserHandler) GetAllUsers() gin.HandlerFunc {
 // GetAllRoles retrieves all roles
 func (h *UserHandler) GetAllRoles() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var roles []models.Role
+		var roles []Role
 		if err := h.RoleRepo.GetAll(&roles); err != nil {
 			SendError(c, FAILED_GET_ROLES, err)
 			return
@@ -51,7 +51,7 @@ func (h *UserHandler) GetAllRoles() gin.HandlerFunc {
 // InsertRole handles the creating of new roles
 func (h *UserHandler) InsertRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var newRole models.Role
+		var newRole Role
 		if err := c.ShouldBindJSON(&newRole); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
@@ -83,7 +83,7 @@ func (h *UserHandler) UpdateRole() gin.HandlerFunc {
 			return
 		}
 
-		role := models.Role{
+		role := Role{
 			RoleID:   roleID,
 			RoleName: dto.RoleName,
 		}
@@ -115,13 +115,13 @@ func (h *UserHandler) AssignRole() gin.HandlerFunc {
 			return
 		}
 
-		var user models.User
+		var user User
 		if err := h.Conf.Db.Preload("Roles").First(&user, userID).Error; err != nil {
 			SendError(c, USER_NOT_FOUND, err)
 			return
 		}
 
-		var role models.Role
+		var role Role
 		if err := h.Conf.Db.First(&role, input.RoleID).Error; err != nil {
 			SendError(c, ROLE_NOT_FOUND, err)
 			return
@@ -152,13 +152,13 @@ func (h *UserHandler) RevokeRole() gin.HandlerFunc {
 			return
 		}
 
-		var user models.User
+		var user User
 		if err := h.Conf.Db.Preload("Roles").First(&user, userID).Error; err != nil {
 			SendError(c, USER_NOT_FOUND, err)
 			return
 		}
 
-		var role models.Role
+		var role Role
 		if err := h.Conf.Db.First(&role, roleID).Error; err != nil {
 			SendError(c, ROLE_NOT_FOUND, err)
 			return

@@ -7,23 +7,24 @@ import (
 	"os"
 	"path/filepath"
 	"storage/configuration"
-	"storage/internal/models"
+	. "storage/internal/models"
 	"storage/internal/receipt"
-	"storage/internal/repos"
+	"storage/internal/repository"
 	. "storage/internal/services"
 	. "storage/internal/utils"
+	"storage/middleware"
 	"strings"
 	"time"
 )
 
 type ReservationHandler struct {
-	Repo *repos.BaseRepository[models.Reservation]
+	Repo *repository.BaseRepository[Reservation]
 	Conf *configuration.Dependencies
 }
 
 func NewReservationHandler(conf *configuration.Dependencies) *ReservationHandler {
 	return &ReservationHandler{
-		Repo: &repos.BaseRepository[models.Reservation]{DB: conf.Db},
+		Repo: &repository.BaseRepository[Reservation]{DB: conf.Db},
 		Conf: conf,
 	}
 }
@@ -31,13 +32,17 @@ func NewReservationHandler(conf *configuration.Dependencies) *ReservationHandler
 // CreateReservation handles creating a new reservation.
 func (h *ReservationHandler) CreateReservation() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var reservation models.Reservation
+		var reservation Reservation
 
 		// Validate input
 		if err := c.ShouldBindJSON(&reservation); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
 		}
+
+		userData, _ := c.Get("user")
+		userDetails, _ := userData.(middleware.UserDetails)
+		reservation.Maker = strings.ToLower(userDetails.Username)
 
 		if !reservation.StartDate.Before(reservation.EndDate) || reservation.StartDate.Before(time.Now()) {
 			SendError(c, INVALID_RES_START_DATE, nil)
@@ -46,7 +51,7 @@ func (h *ReservationHandler) CreateReservation() gin.HandlerFunc {
 
 		// Check for conflicts
 		var count int64
-		h.Conf.Db.Model(&models.Reservation{}).
+		h.Conf.Db.Model(&Reservation{}).
 			Where("hall_id = ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
 				reservation.HallID, reservation.StartDate, reservation.EndDate,
 				reservation.StartDate, reservation.EndDate).
@@ -63,7 +68,7 @@ func (h *ReservationHandler) CreateReservation() gin.HandlerFunc {
 		}
 
 		// Get hall cost
-		var hall models.Hall
+		var hall Hall
 		if err := h.Conf.Db.First(&hall, reservation.HallID).Error; err != nil {
 			SendError(c, HALL_NOT_FOUND, nil)
 			return
@@ -105,13 +110,13 @@ func (h *ReservationHandler) UpdateReservation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
-		var reservation models.Reservation
+		var reservation Reservation
 		if err := h.Repo.GetByID(id, &reservation); err != nil {
 			SendError(c, RESERVATION_NOT_FOUND, err)
 			return
 		}
 
-		var updated models.Reservation
+		var updated Reservation
 		if err := c.ShouldBindJSON(&updated); err != nil {
 			SendError(c, INVALID_REQ_PAYLOAD, err)
 			return
@@ -123,7 +128,7 @@ func (h *ReservationHandler) UpdateReservation() gin.HandlerFunc {
 		}
 
 		var count int64
-		h.Conf.Db.Model(&models.Reservation{}).
+		h.Conf.Db.Model(&Reservation{}).
 			Where("hall_id = ? AND id != ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
 				updated.HallID, id,
 				updated.StartDate, updated.EndDate,
@@ -135,14 +140,14 @@ func (h *ReservationHandler) UpdateReservation() gin.HandlerFunc {
 			return
 		}
 
-		var hall models.Hall
+		var hall Hall
 		if err := h.Conf.Db.First(&hall, updated.HallID).Error; err != nil {
 			SendError(c, RESERVATION_NOT_FOUND, err)
 			return
 		}
 
-		reservation.Name = updated.Name
-		reservation.Company = updated.Company
+		reservation.FirstName = updated.FirstName
+		reservation.LastName = updated.LastName
 		reservation.HallID = updated.HallID
 		reservation.StartDate = updated.StartDate
 		reservation.EndDate = updated.EndDate
@@ -160,9 +165,16 @@ func (h *ReservationHandler) UpdateReservation() gin.HandlerFunc {
 // GetReservations retrieves reservations with enhanced filtering and sorting.
 func (h *ReservationHandler) GetReservations() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var reservations []models.Reservation
-		query := h.Repo.DB
+		userData, _ := c.Get("user")
+		userDetails, _ := userData.(middleware.UserDetails)
 
+		var reservations []Reservation
+		query := h.Repo.DB
+		query = query.Preload("Hall")
+
+		if userDetails.HasRole("user") {
+			query = query.Where("LOWER(maker) = ?", strings.ToLower(userDetails.Username))
+		}
 		if dateStr := c.Query("date"); dateStr != "" {
 			if parsedDate, err := time.Parse("2006-01-02", dateStr); err == nil {
 				query = query.Where("start_date <= ? AND end_date >= ?", parsedDate, parsedDate)
@@ -170,6 +182,9 @@ func (h *ReservationHandler) GetReservations() gin.HandlerFunc {
 		}
 		if company := c.Query("company"); company != "" {
 			query = query.Where("LOWER(company) = ?", strings.ToLower(company))
+		}
+		if status := c.Query("status"); status != "" {
+			query = query.Where("status = ?", status)
 		}
 		if hall := c.Query("hall"); hall != "" {
 			query = query.Where("hall_id = ?", hall)
@@ -208,7 +223,7 @@ func (h *ReservationHandler) DeleteReservation() gin.HandlerFunc {
 		id := c.Param("id")
 
 		// Fetch using repo
-		var reservation models.Reservation
+		var reservation Reservation
 		if err := h.Repo.GetByID(id, &reservation); err != nil {
 			SendError(c, RESERVATION_NOT_FOUND, err)
 			return
@@ -253,7 +268,7 @@ func deleteReceiptFile(reservationID uint) error {
 // GetCategorizedReservations groups reservations into Past, Current, and Upcoming.
 func (h *ReservationHandler) GetCategorizedReservations() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var reservations []models.Reservation
+		var reservations []Reservation
 
 		if err := h.Repo.DB.Preload("Hall").Find(&reservations).Error; err != nil {
 			SendError(c, FAILED_GET_RESERVATIONS, err)
@@ -261,7 +276,7 @@ func (h *ReservationHandler) GetCategorizedReservations() gin.HandlerFunc {
 		}
 
 		now := time.Now()
-		var past, current, upcoming []models.Reservation
+		var past, current, upcoming []Reservation
 
 		for _, r := range reservations {
 			if r.EndDate.Before(now) {
@@ -284,7 +299,7 @@ func (h *ReservationHandler) GetCategorizedReservations() gin.HandlerFunc {
 // GetReservationSummary aggregates reservation data for dashboard display.
 func (h *ReservationHandler) GetReservationSummary() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var reservations []models.Reservation
+		var reservations []Reservation
 
 		if h.Conf.Db == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is disabled."})
